@@ -1,0 +1,9 @@
+[submodule "third_parties/UTMOSv2"]
+	path = third_parties/UTMOSv2
+	url = https://github.com/sarulab-speech/UTMOSv2.git
+[submodule "third_parties/F5-TTS"]
+	path = third_parties/F5-TTS
+	url = https://github.com/SWivid/F5-TTS.git
+[submodule "third_parties/CosyVoice"]
+	path = third_parties/CosyVoice
+	url = https://github.com/FunAudioLLM/CosyVoice.git
