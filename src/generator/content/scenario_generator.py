@@ -1,6 +1,10 @@
 from utils.llm import LLM
 from pydantic import BaseModel, Field
 from typing import Optional, List
+import logging
+from data.dialogue import DialogueScenario, Dialogue
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT_TEMPLATE = """
@@ -57,42 +61,9 @@ USER_PROMPT_TEMPLATE = """
 """
 
 
-class DialogueScenario(BaseModel):
-    """
-    Dialogue scenario model used to generate diverse two-person dialogue data.
-    Provides high-level scene descriptions, giving LLMs creative space.
-    """
-
-    dialogue_type: str = Field(
-        ...,
-        description="Type or purpose of the dialogue.",
-    )
-
-    temporal_context: str = Field(
-        ...,
-        description="Temporal background, can be an era or century",
-    )
-
-    spatial_context: str = Field(
-        ...,
-        description="Spatial or geographical background or specific places, etc.",
-    )
-
-    cultural_background: str = Field(
-        ...,
-        description="Cultural background.",
-    )
-
-    # custom_prompt: Optional[str] = Field(
-    #     "",
-    #     description="User-defined prompt to provide additional guidance or constraints, such as dialogue characteristics, speakers' personality traits, emotional tone, etc."
-    # )
-
-
 class ScenarioGenerator:
     def __init__(self, llm):
         self.llm = llm
-        self.default_gen_params = {"temperture": 2.0, "top_p": 1.0, "top_k": 100}
 
     def _construct_prompt(self, num_scenarios, dialogue_languages, custom_prompts):
         if custom_prompts is not None and dialogue_languages is not None:
@@ -125,7 +96,7 @@ class ScenarioGenerator:
         num_scenarios,
         dialogue_languages: List[str] = None,
         custom_prompts: List[str] = None,
-        gen_params=None,
+        gen_params={},
     ):
         """
         Generate a diverse dialogue scenario seed based on high-level parameters.
@@ -134,20 +105,30 @@ class ScenarioGenerator:
             num_scenarios, dialogue_languages, custom_prompts
         )
 
-        gen_params = gen_params or self.default_gen_params
+        logger.info(f"Generating {num_scenarios} scenarios...")
 
-        scenarios = self.llm.generate(prompts, DialogueScenario, **gen_params)['responses']
+        scenarios = self.llm.generate(prompts, DialogueScenario, **gen_params)[
+            "responses"
+        ]
 
         for i in range(len(scenarios)):
             scenarios[i]["custom_prompt"] = custom_prompts[i]
             scenarios[i]["dialogue_language"] = dialogue_languages[i]
 
-        # Deduplicate exactly same scenarios
+        # Deduplicate exactly same scenarios, but we need to make sure the order is kept
         scenarios = list({str(scenario): scenario for scenario in scenarios}.values())
-        return scenarios
+
+        logger.info(f"Received {len(scenarios)} scenarios from LLM.")
+
+        # Pack scenarios into a predefined dialogue object
+
+        dialogues = []
+        for scenario in scenarios:
+            dialogues.append(Dialogue(scenario=scenario))
+        return dialogues
 
     def generate_scenario_batched_auto(
-        self, num_scenarios, dialogue_language=None, gen_params=None
+        self, num_scenarios, dialogue_language=None, gen_params={}
     ):
         """
         Generate a diverse dialogue scenario seed based on high-level parameters.
@@ -156,9 +137,11 @@ class ScenarioGenerator:
             num_scenarios, [dialogue_language] * num_scenarios, None
         )
 
-        gen_params = gen_params or self.default_gen_params
+        logger.info(f"Generating {num_scenarios} scenarios...")
 
-        scenarios = self.llm.generate(prompts, DialogueScenario, **gen_params)['responses']
+        scenarios = self.llm.generate(prompts, DialogueScenario, **gen_params)[
+            "responses"
+        ]
 
         for i in range(len(scenarios)):
             scenarios[i]["dialogue_language"] = dialogue_language
@@ -166,4 +149,10 @@ class ScenarioGenerator:
 
         # Deduplicate exactly same scenarios
         scenarios = list({str(scenario): scenario for scenario in scenarios}.values())
-        return scenarios
+
+        logger.info(f"Generated {len(scenarios)} scenarios.")
+
+        dialogues = []
+        for scenario in scenarios:
+            dialogues.append(Dialogue(scenario=scenario))
+        return dialogues

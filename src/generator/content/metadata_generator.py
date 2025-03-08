@@ -2,6 +2,10 @@ from utils.llm import LLM
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import json
+import logging
+from data.dialogue import DialogueScenario, Dialogue, Metadata
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are a conversation metadata designer. Your task is to generate metadata for a two-person conversation that is realistic and engaging.
@@ -133,107 +137,45 @@ Generate a complete, valid JSON structure following these requirements. The JSON
 """
 
 USER_PROMPT_TEMPLATE = """
-Please use your creativity to design a very interesting dialogue scene.
-Here is the given scenario context:
+## Dialogue Scenario
 ```json
 {scenario}
 ```
 """
 
 
-class Setting(BaseModel):
-    location: str = Field(
-        ..., description="Physical location where the conversation takes place"
-    )
-    time_of_day: str = Field(
-        ..., description="Time of day when the conversation occurs"
-    )
-    context: str = Field(
-        ..., description="Brief description of the situational context"
-    )
-    atmosphere: str = Field(..., description="Mood or feeling of the environment")
-
-
-class Role(BaseModel):
-    name: str = Field(..., description="Full name of the speaker")
-    gender: str = Field(..., description="Gender of the speaker")
-    age: int = Field(..., description="Age of the speaker")
-    occupation: str = Field(..., description="Current occupation or role")
-    nationality: str = Field(..., description="The nationality of the speaker")
-    personality_traits: List[str] = Field(
-        ...,
-        description="List of key personality traits that define the speaker",
-    )
-    relationship_context: str = Field(
-        ..., description="Speaker's relationship or role in the current context"
-    )
-    self_introduction: str = Field(
-        ...,
-        description="Detailed description of the speaker's characteristics and background",
-    )
-
-
-class ConversationContext(BaseModel):
-    type: str = Field(..., description="Type or category of the conversation")
-    main_topic: str = Field(
-        ..., description="Primary topic or purpose of the conversation"
-    )
-    relationship_dynamic: str = Field(
-        ..., description="Nature of relationship between the speakers"
-    )
-    emotional_tone: str = Field(
-        ..., description="Overall emotional tone of the conversation"
-    )
-    expected_duration: str = Field(
-        ..., description="Expected length of the conversation"
-    )
-    expected_turns: int = Field(
-        ..., description="Expected number of conversation turns"
-    )
-    key_points: List[str] = Field(
-        ...,
-        description="List of key points or events expected in the conversation",
-    )
-
-
-class ConversationMetadata(BaseModel):
-    setting: Setting = Field(..., description="Details about the conversation setting")
-    role_1: Role = Field(..., description="Details about the first speaker")
-    role_2: Role = Field(..., description="Details about the second speaker")
-    conversation_context: ConversationContext = Field(
-        ..., description="Details about the conversation context and structure"
-    )
-
-
 class MetadataGenerator:
     def __init__(self, llm: LLM):
         self.llm = llm
-        self.default_gen_params = {"temperature": 1.0, "top_p": 1.0, "top_k": 50}
 
-    def _construct_prompt(self, dialogue_scenarios):
+    def _construct_prompt(self, dialogues):
 
         created_prompts = []
-        for i in range(len(dialogue_scenarios)):
+        for i, dialogue in enumerate(dialogues):
             message = [
                 {"role": "system", "content": SYSTEM_PROMPT_TEMPLATE},
                 {
                     "role": "user",
                     "content": USER_PROMPT_TEMPLATE.format(
-                        scenario=json.dumps(dialogue_scenarios[i], indent=2)
+                        scenario=dialogue.scenario.to_json(pretty=True),
                     ),
                 },
             ]
             created_prompts.append(message)
         return created_prompts
 
-    def generate_metadata(self, dialogue_scenarios, gen_params=None):
-        gen_params = gen_params or self.default_gen_params
-        prompts = self._construct_prompt(dialogue_scenarios)
-        outputs = self.llm.generate(prompts, ConversationMetadata, **gen_params)
-
-        generated_metadatas = []
+    def _fill_back(self, outputs, dialogues):
+        remaining_dialogues = []
         for i in outputs["success_indices"]:
             metadata = outputs["responses"][i]
-            metadata["input_scenario"] = dialogue_scenarios[i]
-            generated_metadatas.append(metadata)
-        return generated_metadatas
+            dialogues[i].metadata = Metadata.model_validate(metadata)
+            remaining_dialogues.append(dialogues[i])
+        return remaining_dialogues
+
+    def generate_metadata(self, dialogues: List[Dialogue], gen_params={}):
+        prompts = self._construct_prompt(dialogues)
+        logger.info(f"Generating {len(dialogues)} metadata...")
+        outputs = self.llm.generate(prompts, Metadata, **gen_params)
+        remaining_dialogues = self._fill_back(outputs, dialogues)
+        logger.info(f"Generated {len(remaining_dialogues)} metadata.")
+        return remaining_dialogues
