@@ -209,12 +209,12 @@ class LLM(SDFModule):
                     else self.generation_config.top_k
                 ),
             )
-            repeat_penalty = kwargs.get(
-                "repeat_penalty",
+            repetition_penalty = kwargs.get(
+                "repetition_penalty",
                 (
                     1.05
-                    if self.generation_config.repeat_penalty is None
-                    else self.generation_config.repeat_penalty
+                    if getattr(self.generation_config, "repetition_penalty", None) is None
+                    else self.generation_config.repetition_penalty
                 ),
             )
             max_tokens = kwargs.get("max_tokens", 16384)
@@ -225,7 +225,7 @@ class LLM(SDFModule):
                 top_k=top_k,
                 max_tokens=max_tokens,
                 guided_decoding=guided_decoding,
-                repetition_penalty=repeat_penalty
+                repetition_penalty=repetition_penalty
             )
 
         def run_unguided_inference(prompts):

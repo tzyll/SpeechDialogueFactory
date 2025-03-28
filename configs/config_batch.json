@@ -1,0 +1,60 @@
+{
+    "sdf_args":{
+        "tts_in_use": "CosyVoiceTTS",
+        "lazy_load": true
+    },
+    "module_args": {
+        "LLM": {
+            "llm_in_use": "meta-llama/Llama-3.3-70B-Instruct",
+            "inference_mode": "vllm",
+            "api_key": "",
+            "base_url": "",
+            "fast_mode": true
+        },
+        "ScenarioGenerator": {
+            "default_language": "English"
+        },
+        "ContentQualityFilter": {
+            "consistency_threshold": 0.85,
+            "coherence_threshold": 0.85,
+            "naturalness_threshold": 0.85
+        },
+        "CosyVoiceTTS": {
+            "cosyvoice_codebase": "./third_parties/CosyVoice",
+            "cosyvoice_model_checkpoint": "./third_parties/CosyVoice/pretrained_models/CosyVoice2-0.5B",
+            "cosyvoice_voice_bank_path": "./commonvoice/cv-corpus-20.0-delta-2024-12-06/en/",
+            "cosyvoice_device": "cuda:0",
+            "target_sample_rate": 16000,
+            "num_tts_workers": 4,
+            "cosyvoice_tmp_dir": "./tts_tmp"
+        },
+        "IntelligibilityEvaluator": {
+            "whisper_model_name": "turbo",
+            "whisper_device": "cuda:0",
+            "whisper_input_sr": 16000,
+            "num_whisper_workers": 4,
+            "intelligibility_evaluation_temp_dir": "./asr_tmp"
+        },
+        "SpeechQualityEvaluator": {
+            "model_path": "./third_parties/UTMOSv2/models/fusion_stage3/fold0_s42_best_model.pth",
+            "input_sr": 16000,
+            "mos_tmp_dir": "./mos_tmp",
+            "num_workers": 4,
+            "batch_size": 32,
+            "mos_device": "cuda:0",
+            "num_mos_workers": 4,
+            "speech_quality_evaluation_temp_dir": "./squality_tmp"
+        },
+        "SpeakerConsistencyEvaluator": {
+            "speaker_consistency_model_dir": "./third_parties/pretrained_models/spkrec-xvect-voxceleb",
+            "speaker_consistency_device": "cuda:0",
+            "input_sr": 16000,
+            "speaker_consistency_threshold": 0.94
+        },
+        "SpeechQualityFilter":{
+            "intelligibility_threshold": 0.8,
+            "speaker_consistency_threshold": 0.9,
+            "speech_quality_threshold": 0.6
+        }
+    }
+}

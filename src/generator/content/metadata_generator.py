@@ -288,11 +288,11 @@ class MetadataGenerator(SDFModule):
         self.llm = llm
 
     def _construct_prompt(self, dialogues):
+        created_prompts = []
         for i, dialogue in enumerate(dialogues):
             dialogue_langue = dialogue.scenario.dialogue_language
             SPROMPT = SYSTEM_PROMPT_TEMPLATE_CN if dialogue_langue == "Chinese" else SYSTEM_PROMPT_TEMPLATE
             UPROMPT = USER_PROMPT_TEMPLATE_CN if dialogue_langue == "Chinese" else USER_PROMPT_TEMPLATE
-            created_prompts = []
             message = [
                 {"role": "system", "content": SPROMPT},
                 {
