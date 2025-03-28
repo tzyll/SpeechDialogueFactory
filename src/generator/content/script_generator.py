@@ -1,3 +1,4 @@
+from utils.base_classes import SDFModule
 from utils.llm import LLM
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -5,7 +6,7 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
-from data.dialogue import DialogueScenario, Dialogue, Metadata
+from data_classes.dialogue import DialogueScenario, Dialogue, Metadata
 
 
 SYSTEM_PROMPT_TEMPLATE = """
@@ -190,18 +191,196 @@ USER_PROMPT_TEMPLATE = """
 """
 
 
-class ScriptGenerator:
-    def __init__(self, llm: LLM):
+SYSTEM_PROMPT_TEMPLATE_CN = """
+您是一位对话脚本设计师。您的任务是根据提供的元数据创建一个详细的双人对话脚本大纲。这个脚本将作为生成最终对话的蓝图。
+
+请按照以下精确的部分来输出您的脚本，采用结构化的markdown格式：
+
+### 场景：
+写一个简短的段落描述物理环境、氛围和角色的初始情况。使用元数据中设置和上下文的具体细节。
+
+### 叙事流程：
+将对话分成4个清晰的部分（必须与元数据中的expected_turns完全匹配）：
+1. 开场（通常2-3个回合）
+2. 初步讨论（2-4个回合）
+3. 主要讨论（3-5个回合）
+4. 结束（2-3个回合）
+
+对于每个部分：
+- 列出具体的对话节点
+- 显示main_topic的清晰进展
+- 包含元数据中的所有key_points
+
+### 角色行为：
+对于每个角色（role_1和role_2）：
+- 列出3-5个具体的说话模式或行为特征
+- 基于元数据中的personality_traits
+- 包括他们典型的反应和举止
+- 展示他们的职业和背景如何影响他们的言语
+
+### 情感发展：
+概述3个情感发展阶段：
+- 开始：两个角色的初始情感状态
+- 中间：情感如何在主要讨论中演变
+- 结束：最终情感状态和解决方案
+
+重要要求：
+1. 保持一切与提供的元数据一致
+2. 在流程中自然地包含元数据中的所有key_points
+3. 根据角色的self_introductions保持角色一致性
+4. 在所有互动中考虑relationship_dynamic
+5. 保持脚本集中，避免不必要的元素
+
+以下是对话场景和相应元数据的示例：
+
+### 对话场景：
+```json
+{
+    "dialogue_type": "教育互动",
+    "temporal_context": "现代",
+    "spatial_context": "大学图书馆",
+    "cultural_background": "东方文化背景",
+    "custom_prompt": "创建一个大学图书馆学习讨论的对话场景。",
+    "language": "Chinese"
+  }
+```
+
+### 元数据：
+```json
+{
+  "setting": {
+    "location": "大学图书馆自习室",
+    "time_of_day": "傍晚",
+    "context": "期末考试复习时段",
+    "atmosphere": "专注且略带紧张"
+  },
+  "role_1": {
+    "name": "李明",
+    "gender": "male",
+    "age": 20,
+    "occupation": "大学本科生",
+    "nationality": "中国",
+    "personality_traits": [
+      "勤奋",
+      "对成绩焦虑",
+      "乐于助人"
+    ],
+    "relationship_context": "学习小组伙伴",
+    "self_introduction": "李明是一名计算机科学专业的大二学生，他非常重视自己的学业。他擅长向他人解释技术概念，但经常对考试感到焦虑。尽管有自己的压力，他真诚地喜欢帮助同学理解困难的材料。他以创建详细的学习笔记和在图书馆待到很晚而闻名。"
+  },
+  "role_2": {
+    "name": "王芳",
+    "gender": "female",
+    "age": 19,
+    "occupation": "大学本科生",
+    "nationality": "中国",
+    "personality_traits": [
+      "乐观",
+      "学习快",
+      "略微缺乏条理"
+    ],
+    "relationship_context": "寻求帮助的同班同学",
+    "self_introduction": "王芳是一个聪明而热情的学生，她能快速掌握概念，但在保持一致的学习习惯方面有困难。她和李明上同一门编程课，虽然她对实际应用理解得很好，但有时在理论概念上遇到困难。她积极的态度和对学习的真诚兴趣使她成为一个愉快的学习伙伴。"
+  },
+  "conversation_context": {
+    "type": "学习讨论",
+    "main_topic": "准备即将到来的编程考试",
+    "relationship_dynamic": "友好的同学关系",
+    "emotional_tone": "互相支持，但因考试压力有潜在紧张",
+    "expected_duration": "5分钟",
+    "expected_turns": 12,
+    "key_points": [
+      "讨论困难的递归概念",
+      "王芳询问关于特定练习问题",
+      "李明分享他的学习技巧",
+      "计划下一次学习会议",
+      "简短讨论课程项目"
+    ]
+  }
+}
+```
+
+以下是您的脚本应该如何构建：
+
+### 场景：
+大学图书馆自习室，傍晚时分。房间安静，灯光柔和。李明和王芳坐在一张桌子旁，面前摊开着教科书和笔记本电脑。
+
+### 叙事流程：
+1. 开场（2个回合）：
+   - 王芳略显慌乱地到达，向李明打招呼
+   - 李明一边整理学习资料一边欢迎她
+
+2. 初步讨论（3个回合）：
+   - 王芳表达对递归概念的焦虑
+   - 李明提供安慰并建议从基础例子开始
+   - 王芳分享她正在struggle的特定问题
+
+3. 主要学习讨论（4个回合）：
+   - 李明使用实际例子解释递归
+   - 王芳就基本情况提出澄清问题
+   - 李明分享他分解递归问题的方法
+   - 王芳对特定概念有了"顿悟"的感觉
+
+4. 结束（3个回合）：
+   - 王芳建议计划另一次学习会议
+   - 李明同意并提到即将到来的项目
+   - 关于下次会面时间的简短交流
+
+### 角色行为：
+李明：
+- 说话使用清晰、有条理的句子
+- 偶尔表现出自己对考试的压力
+- 使用类比来解释概念
+- 保持乐于助人但略带焦虑的态度
+
+王芳：
+- 当困惑时直接提问
+- 理解概念时表现出热情
+- 偶尔会因项目想法而离题
+- 使用更加随意的语言
+
+### 情感发展：
+- 开始：轻微紧张（王芳的压力，李明想要帮助的愿望）
+- 中间：随着概念变得更清晰，信心增长
+- 结束：对理解材料感到轻松和乐观
+
+### 语言考虑：
+- 两个角色都是中国的母语为中文的人
+- 李明因其勤奋的性格使用更精确的技术术语
+- 王芳使用更多日常表达和填充词
+- 他们的中国文化背景影响了他们含蓄而礼貌的交流风格
+- 两人都保持典型的中国大学生之间尊重但不过分正式的语言风格
+
+根据这个格式生成一个完整的脚本。严格基于提供的元数据JSON的所有元素。
+"""
+
+USER_PROMPT_TEMPLATE_CN = """
+## 对话场景
+{scenario}
+
+## 元数据
+```json
+{metadata}
+```
+"""
+
+
+@SDFModule.set_role("generator")
+class ScriptGenerator(SDFModule):
+    def __init__(self, args, llm: LLM):
         self.llm = llm
 
-    def _construct_prompt(self, dialogues):
+    def _construct_prompt(self, dialogues: List[Dialogue]):
         messages = []
         for dialogue in dialogues:
+            dialogue_langue = dialogue.scenario.dialogue_language
+            SPROMPT = SYSTEM_PROMPT_TEMPLATE_CN if dialogue_langue == "Chinese" else SYSTEM_PROMPT_TEMPLATE
+            UPROMPT = USER_PROMPT_TEMPLATE_CN if dialogue_langue == "Chinese" else USER_PROMPT_TEMPLATE
             message = [
-                {"role": "system", "content": SYSTEM_PROMPT_TEMPLATE},
+                {"role": "system", "content": SPROMPT},
                 {
                     "role": "user",
-                    "content": USER_PROMPT_TEMPLATE.format(
+                    "content": UPROMPT.format(
                         scenario=dialogue.scenario.to_json(pretty=True),
                         metadata=dialogue.metadata.to_json(pretty=True),
                     ),
@@ -212,8 +391,8 @@ class ScriptGenerator:
 
     def _fill_back(self, outputs, dialogues):
         remaining_dialogues = []
-        for i in outputs["success_indices"]:
-            script = outputs["responses"][i]
+        for i, r in zip(outputs["success_indices"], outputs["responses"]):
+            script = r
             dialogues[i].script = script
             remaining_dialogues.append(dialogues[i])
         return remaining_dialogues

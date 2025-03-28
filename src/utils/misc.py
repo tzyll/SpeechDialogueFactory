@@ -2,6 +2,7 @@ import json
 import re
 from pydantic import BaseModel
 from typing import Dict
+import yaml
 
 
 def extract_json_from_text(text: str) -> str:
@@ -73,7 +74,7 @@ def validate_and_parse_json_output(output: str, dclass: BaseModel = None) -> Dic
             # Validate against schema
             if dclass:
                 validated_result = dclass.model_validate(result)
-                return validated_result.dict()
+                return validated_result.model_dump()
             return result
         except Exception:
             continue
@@ -98,3 +99,10 @@ def post_process_output(output):
         output = output.replace(special_text, "").strip()
 
     return output
+
+
+def dict_to_markdown_yaml(data, wrap_in_code_block: bool = True) -> str:
+    yaml_str = yaml.dump(data, sort_keys=False, allow_unicode=True, width=float("inf"))
+    if wrap_in_code_block:
+        return f"```yaml\n{yaml_str}\n```"
+    return yaml_str

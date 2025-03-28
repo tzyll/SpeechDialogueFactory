@@ -1,6 +1,11 @@
 import vllm
+import gc
 from vllm.sampling_params import GuidedDecodingParams, SamplingParams
-from openai import OpenAI
+from vllm.distributed.parallel_state import (
+    destroy_model_parallel,
+    destroy_distributed_environment,
+)
+from openai import OpenAI, AzureOpenAI
 import torch
 from transformers import AutoTokenizer, GenerationConfig
 from pydantic import BaseModel
@@ -8,57 +13,141 @@ import tqdm
 from utils.misc import validate_and_parse_json_output, post_process_output
 import logging
 import json
+import argparse
+from utils.base_classes import SDFModule
+import os
+import contextlib
 
 logger = logging.getLogger(__name__)
 
+@SDFModule.set_role("generator")
+class LLM(SDFModule):
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser):
+        parser.add_argument(
+            "--inference_mode",
+            type=str,
+            default="api",
+            choices=["api", "vllm", "azure"],
+            help="Inference mode to use: 'api' for OpenAI API, 'vllm' for VLLM.",
+        )
+        parser.add_argument(
+            "--api_key",
+            type=str,
+            default=None,
+            help="API key for OpenAI API. Required if inference_mode is 'api'.",
+        )
+        parser.add_argument(
+            "--base_url",
+            type=str,
+            default=None,
+            help="Base URL for OpenAI API. Required if inference_mode is 'api'.",
+        )
+        parser.add_argument(
+            "--llm_in_use",
+            type=str,
+            default="meta-llama/Llama-3.3-70B-Instruct",
+            help="Model name to use for inference.",
+        )
+        parser.add_argument(
+            "--fast_mode",
+            action="store_true",
+            default=False,
+            help="Use fast mode for inference. First use unguided decoding, then guided decoding if needed.",
+        )
 
-class LLM:
     def __init__(self, args):
         self.args = args
         self.inference_mode = args.inference_mode
+        self.fast_mode = args.fast_mode
 
         # We allow two types of inference modes: 'api' and 'vllm'
+        
+    
+    def initialize(self):
         if self.inference_mode == "api":
-            self.api_key = args.api_key
-            self.base_url = args.base_url
-            self.is_openai = True if self.base_url is None else False
-            self.model = args.model
+            self.api_key = self.args.api_key
+            self.base_url = self.args.base_url
+            self.model = self.args.llm_in_use
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        elif self.inference_mode == "azure":
+            self.api_key = self.args.api_key
+            self.base_url = self.args.base_url
+            self.model = self.args.llm_in_use
+            api_version = self.base_url.split("api-version=")[-1]
+            self.client = AzureOpenAI(api_key=self.api_key, api_version=api_version, azure_endpoint=self.base_url)
         elif self.inference_mode == "vllm":
-            self.model, self.tokenizer, self.generation_config = self.load_model(args)
+            self.model, self.tokenizer, self.generation_config = self.load_model(self.args)
         else:
             raise ValueError(f"Invalid inference mode: {self.inference_mode}")
+        
+        return self
+    
+    def unload(self):
+        if self.inference_mode == "vllm":
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+            destroy_model_parallel()
+            destroy_distributed_environment()
+            del self.model.llm_engine.model_executor.driver_worker
+            del self.model
+            with contextlib.suppress(AssertionError):
+                torch.distributed.destroy_process_group()
+            gc.collect()
+            torch.cuda.empty_cache()
+            import ray
+            ray.shutdown()
+        else:
+            # For API, no explicit shutdown is needed
+            pass
+
 
     def load_model(self, args):
         # This is only for loading the model in the 'vllm' mode
         model = vllm.LLM(
-            model=args.model,
+            model=args.llm_in_use,
             tensor_parallel_size=torch.cuda.device_count(),
             distributed_executor_backend="ray",
-            enable_prefix_caching=True,
-            max_model_len=16384,
+            enable_prefix_caching=True, 
+            max_model_len=8192,
+            # max_seq_len_to_capture=8192,
             gpu_memory_utilization=0.95,
+            # max_num_seqs=16
         )
-        tokenizer = AutoTokenizer.from_pretrained(args.model)
-        generation_config = GenerationConfig.from_pretrained(args.model)
+        tokenizer = AutoTokenizer.from_pretrained(args.llm_in_use)
+        generation_config = GenerationConfig.from_pretrained(args.llm_in_use)
         return model, tokenizer, generation_config
 
     def generate(self, prompts, json_model: BaseModel = None, **kwargs):
-        if self.inference_mode == "api":
+        if self.inference_mode == "api" or self.inference_mode == "azure":
             return self.generate_api(prompts, json_model, **kwargs)
         elif self.inference_mode == "vllm":
             return self.generate_vllm(prompts, json_model, **kwargs)
         else:
             raise ValueError(f"Invalid inference mode: {self.inference_mode}")
 
-    def generate_api(self, prompts, json_model: BaseModel = None):
+    def generate_api(self, prompts, json_model: BaseModel = None, **kwargs):
         def generate_one_sample(prompt):
             if json_model is None:
-                completion = self.client.beta.chat.completions.create(
-                    model=self.model, messages=prompt
+                completion = self.client.chat.completions.create(
+                    model=self.model, messages=prompt, **kwargs
                 )
-                return completion.choices[0].message.content
+                message = completion.choices[0].message.content
+                return message
             else:
+                if self.fast_mode:
+                    completion = self.client.chat.completions.create(
+                        model=self.model, messages=prompt, **kwargs
+                    )
+                    message = completion.choices[0].message.content
+                    logger.info(
+                        f"Running unguided decoding with output: {message}"
+                    )
+                    result = validate_and_parse_json_output(message, json_model)
+                    if result is not None:
+                        return result
+                    logger.info(
+                        f"Failed to validate JSON for unguided decoding, turning to guided decoding. {message}"
+                    )
                 try:
                     completion = self.client.beta.chat.completions.parse(
                         model=self.model,
@@ -67,8 +156,9 @@ class LLM:
                         extra_body=dict(guided_decoding_backend="outlines"),
                     )
                     message = completion.choices[0].message
+                    logger.info(f"Running guided decoding with output: {message.parsed}")
                     assert message.parsed
-                    return message.parsed
+                    return message.parsed.model_dump()
                 except Exception as e:
                     logger.error(f"Failed to parse JSON: {e}, {message}")
                     return None
@@ -119,6 +209,14 @@ class LLM:
                     else self.generation_config.top_k
                 ),
             )
+            repeat_penalty = kwargs.get(
+                "repeat_penalty",
+                (
+                    1.05
+                    if self.generation_config.repeat_penalty is None
+                    else self.generation_config.repeat_penalty
+                ),
+            )
             max_tokens = kwargs.get("max_tokens", 16384)
             guided_decoding = kwargs.get("guided_decoding", guided_decoding)
             return SamplingParams(
@@ -127,12 +225,15 @@ class LLM:
                 top_k=top_k,
                 max_tokens=max_tokens,
                 guided_decoding=guided_decoding,
+                repetition_penalty=repeat_penalty
             )
 
         def run_unguided_inference(prompts):
             sampling_params = setup_sampling_params()
             model_inputs = [
-                self.tokenizer.apply_chat_template(prompt, tokenize=False)
+                self.tokenizer.apply_chat_template(
+                    prompt, tokenize=False, add_generation_prompt=True
+                )
                 for prompt in prompts
             ]
             logger.info(f"Running unguided decoding with {len(model_inputs)} prompts")
@@ -147,7 +248,9 @@ class LLM:
             guided_decoding_params = GuidedDecodingParams(json=json_schema)
             sampling_params = setup_sampling_params(guided_decoding_params)
             model_inputs = [
-                self.tokenizer.apply_chat_template(prompt, tokenize=False)
+                self.tokenizer.apply_chat_template(
+                    prompt, tokenize=False, add_generation_prompt=True
+                )
                 for prompt in prompts
             ]
             logger.info(f"Running guided decoding with {len(model_inputs)} prompts")
@@ -160,42 +263,47 @@ class LLM:
         # For efficiency purpose, by default, we first run with unguided decoding
         # and then run with guided decoding if any samples are not valid JSON
 
-        outputs = run_unguided_inference(prompts)
-        assert len(outputs) == len(prompts)
-
         if json_model is None:
+            outputs = run_unguided_inference(prompts)
+            assert len(outputs) == len(prompts)
             return {
                 "responses": outputs,
                 "success_indices": list(range(len(prompts))),
                 "failed_indices": [],
             }
 
-        # Validate JSON outputs
+        failed_inputs = [
+            (i, prompt) for i, prompt in enumerate(prompts) if prompt is None
+        ]
         success_results = []
-        failed_inputs = []
-        for i, output in enumerate(outputs):
-            result = validate_and_parse_json_output(output, json_model)
-            if result is not None:
-                success_results.append((i, result))
-            else:
-                failed_inputs.append((i, prompts[i]))
+        if self.fast_mode:
+            outputs = run_unguided_inference(prompts)
+            assert len(outputs) == len(prompts)
 
-        if len(failed_inputs) > 0:
-            logger.info(
-                f"Failed to validate JSON for {len(failed_inputs)} samples. Running guided decoding."
-            )
-            guided_outputs = run_guided_inference(
-                [prompt for _, prompt in failed_inputs]
-            )
-            assert len(guided_outputs) == len(failed_inputs)
-            for (i, _), output in zip(failed_inputs, guided_outputs):
+            # Validate JSON outputs
+            success_results = []
+            failed_inputs = []
+            for i, output in enumerate(outputs):
                 result = validate_and_parse_json_output(output, json_model)
                 if result is not None:
                     success_results.append((i, result))
                 else:
-                    logger.error(
-                        f"Failed to validate JSON for guided decoding: {output} {result}"
-                    )
+                    failed_inputs.append((i, prompts[i]))
+            if len(failed_inputs) > 0:
+                logger.info(
+                    f"Failed to validate JSON for {len(failed_inputs)} samples. Will run guided decoding later."
+                )
+
+        guided_outputs = run_guided_inference([prompt for _, prompt in failed_inputs])
+        assert len(guided_outputs) == len(failed_inputs)
+        for (i, _), output in zip(failed_inputs, guided_outputs):
+            result = validate_and_parse_json_output(output, json_model)
+            if result is not None:
+                success_results.append((i, result))
+            else:
+                logger.error(
+                    f"Failed to validate JSON for guided decoding: {output} {result}"
+                )
 
         success_results.sort(key=lambda x: x[0])
         responses = [result for _, result in success_results]
