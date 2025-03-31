@@ -168,10 +168,6 @@ class SDFApp:
                 data = {k: float(f"{v:.3f}") for k, v in data.items()}
                 content_val = dict_to_markdown_yaml(data)
                 outs[content_pos] = gr.update(value=content_val, visible=True)
-                # df = pd.DataFrame(list(data.items()), columns=["key", "value"])
-                # outs[content_pos] = gr.update(
-                #     value=df, x="key", y="value", visible=True
-                # )
 
             elif field == "dialogue_audio":
                 audio_dict = dialogue_obj.dialogue_audio
@@ -248,14 +244,7 @@ parser = argparse.ArgumentParser()
 add_arguments(parser)
 args = parser.parse_args()
 
-# sdf_app = SDFApp(args)
-sdf_app = SDFApp(
-    argparse.Namespace(
-        sdf_config="configs/sdf_config_app_oai.json",
-        dryrun=True,
-        dryrun_sample_path="./output/dialogue_0.pkl",
-    )
-)
+sdf_app = SDFApp(args)
 
 with gr.Blocks() as demo:
     gr.Markdown(
@@ -326,4 +315,3 @@ with gr.Blocks() as demo:
         fn=sdf_app.get_progress_updates,
         outputs=all_outputs,
     )
-# Generate a dialouge between a father and a son about a famous video game named "War Thunder".

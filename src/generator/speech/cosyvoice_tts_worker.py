@@ -214,6 +214,9 @@ class CosyVoiceTTS(SDFModule):
 
             if speaker_id not in voice_profiles:
                 return None
+            if len(text.strip()) == 0:
+                return None
+            
             voice_profile, voice_speech = voice_profiles[speaker_id]
             voice_text = voice_profile["voice_text"]
             characteristics = voice_profile["speaker_personality_traits"]
@@ -255,25 +258,31 @@ class CosyVoiceTTS(SDFModule):
                 control_instruct = "请用{emotion}的语气来生成。".format(
                     emotion=emotion,
                 )
-            waveform = (
-                torch.concat(
-                    [
-                        u["tts_speech"]
-                        for u in list(
-                            self.cosyvoice_model.inference_instruct2(
-                                text,
-                                control_instruct,
-                                voice_speech,
-                                stream=False,
-                                speed=speech_rates.get(speech_rate, 1.0),
+            try:
+                waveform = (
+                    torch.concat(
+                        [
+                            u["tts_speech"]
+                            for u in list(
+                                self.cosyvoice_model.inference_instruct2(
+                                    text,
+                                    control_instruct,
+                                    voice_speech,
+                                    stream=False,
+                                    speed=speech_rates.get(speech_rate, 1.0),
+                                )
                             )
-                        )
-                    ],
-                    dim=-1,
+                        ],
+                        dim=-1,
+                    )
+                    .cpu()
+                    .view(-1)
                 )
-                .cpu()
-                .view(-1)
-            )
+            except Exception as e:
+                logger.error(f"Error in TTS synthesis: {e}")
+                logger.error(f"Failed to synthesize text: {text}")
+                logger.error(f"Dialogue: {dialogue}")
+                return None
 
             waveform = torchaudio.functional.resample(
                 waveform.unsqueeze(0),

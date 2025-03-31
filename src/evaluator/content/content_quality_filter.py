@@ -34,7 +34,7 @@ class ContentQualityFilter(SDFModule):
         Returns:
             bool: True if the dialogue passes the filter, False otherwise.
         """
-        if len(dialogue.conversation) < 4:
+        if len(dialogue.conversation.utterances) < 4:
             return False
         coherence_score = np.mean(
             list(dialogue.coherence_evaluation.summary().values())
