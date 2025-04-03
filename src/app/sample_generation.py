@@ -251,6 +251,7 @@ with gr.Blocks() as demo:
         "# Speech Dialogue Factory: Generate Unlimited Realistic Dialogue Data For Your Conversational LLM"
     )
     gr.Markdown("## Generate a sample dialogue with a custom prompt and language.")
+    gr.Markdown("This page is used to generate a sample dialogue with a custom prompt and language. The generated dialogue will be displayed step by step down below. You can download the generated dialogue pickle file after the generation is complete.")
 
     with gr.Row():
         with gr.Column():

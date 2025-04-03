@@ -122,6 +122,9 @@ with gr.Blocks() as demo:
         "# Speech Dialogue Factory: Generate Unlimited Realistic Dialogue Data For Your Conversational LLM"
     )
     gr.Markdown("## Inspect the generated data with this page.")
+    gr.Markdown(
+        "This page allows you to inspect the generated data by uploading the generated dialogue pickle file or inputting the file path on your server. The file should be a pickle file containing one dialogue. The dialogue will be displayed down below."
+    )
 
     current_tab = gr.State("upload_pkl_tab")
 

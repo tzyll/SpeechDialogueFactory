@@ -156,5 +156,13 @@ bash scripts/run_batch.sh \
 If you use SpeechDialogueFactory in your research, please cite our paper:
 
 ```
-
+@misc{wang2025speechdialoguefactorygeneratinghighqualityspeech,
+      title={SpeechDialogueFactory: Generating High-Quality Speech Dialogue Data to Accelerate Your Speech-LLM Development}, 
+      author={Minghan Wang and Ye Bai and Yuxia Wang and Thuy-Trang Vu and Ehsan Shareghi and Gholamreza Haffari},
+      year={2025},
+      eprint={2503.23848},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2503.23848}, 
+}
 ```
