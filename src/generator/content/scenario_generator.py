@@ -164,13 +164,13 @@ class ScenarioGenerator(SDFModule):
 
         logger.info(f"Generating {num_dialogues} scenarios...")
 
-        scenarios = self.llm.generate(prompts, DialogueScenario, **gen_params)[
-            "responses"
-        ]
-
+        results = self.llm.generate(prompts, DialogueScenario, **gen_params)
+        scenarios = results["responses"]
+        success_indices = results["success_indices"]
+        assert len(scenarios) == len(success_indices)
         for i in range(len(scenarios)):
-            scenarios[i]["custom_prompt"] = custom_prompts[i]
-            scenarios[i]["dialogue_language"] = dialogue_languages[i]
+            scenarios[i]["custom_prompt"] = custom_prompts[success_indices[i]]
+            scenarios[i]["dialogue_language"] = dialogue_languages[success_indices[i]]
 
         # Deduplicate exactly same scenarios, but we need to make sure the order is kept
         scenarios = list({str(scenario): scenario for scenario in scenarios}.values())

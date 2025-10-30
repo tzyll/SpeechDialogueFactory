@@ -41,7 +41,7 @@ class DialogueScenario(DataClassModel):
         description="User-defined prompt to provide additional guidance or constraints",
     )
 
-    model_config = {"json_schema_extra": {"exclude": ["language", "custom_prompt"]}}
+    model_config = {"json_schema_extra": {"exclude": ["dialogue_language", "custom_prompt"]}}
 
 
 class Setting(DataClassModel):

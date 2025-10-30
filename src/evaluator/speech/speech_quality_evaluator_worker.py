@@ -23,6 +23,12 @@ class SpeechQualityEvaluator(SDFModule):
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser):
         parser.add_argument(
+            "--model_path",
+            type=str,
+            default="./third_parties/pretrained_models/UTMOSv2/fusion_stage3/fold0_s42_best_model.pth",
+            help="Path to the UTMOSv2 model checkpoint",
+        )
+        parser.add_argument(
             "--input_sr",
             type=int,
             default=16000,
@@ -78,7 +84,7 @@ class SpeechQualityEvaluator(SDFModule):
         self.initialize()
 
     def initialize(self):
-        self.mos_model = utmosv2.create_model(pretrained=True, device=self.device)
+        self.mos_model = utmosv2.create_model(checkpoint_path=self.args.model_path, device=self.device)
         self.aesthetics_model = initialize_predictor()
         return self
 

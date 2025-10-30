@@ -1,0 +1,30 @@
+## env
+#cp -rf /apdcephfs/share_976139/users/atomtang/miniconda3_env_cp/py3.10 /root/miniconda3/envs/dialog
+#conda activate dialog
+#sed -i 's:llama_factory_new:dialog:g' /root/miniconda3/envs/dialog/bin/pip
+
+
+# install requirements
+pip install -r requirements.txt
+
+# install F5-TTS, UTMOSv2==1.1.0
+git submodule update --init --recursive  # on devcloud
+cd third_parties/F5-TTS/ && pip install -e . && cd -
+cd third_parties/UTMOSv2/ && pip install -e . && cd -
+
+
+# download qwen
+#!!!!!!!!!!!!!! on devcloud
+
+# download CosyVoice2-0.5B, or softlink
+#!!!!!!!!!!!!!! on devcloud
+#git clone https://www.modelscope.cn/iic/CosyVoice2-0.5B.git ./third_parties/pretrained_models/CosyVoice/CosyVoice2-0.5B
+
+# download whiper
+#!!!!!!!!!!!!!! on devcloud
+#import whisper
+#mdl = whisper.load_model("turbo", download_root="cache/torch/whisper")  # cache/torch/whisper/large-v3-turbo.pt
+
+# download other hf models
+#!!!!!!!!!!!!!! on devcloud
+# ./run.sh on devcloud to download models to `export HF_HOME=cache/huggingface`

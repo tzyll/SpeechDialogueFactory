@@ -95,8 +95,8 @@ class CosyVoiceTTS(SDFModule):
         self.initialize()
 
     def initialize(self):
-        sys.path.append(self.args.cosyvoice_codebase)
-        sys.path.append(
+        sys.path.insert(0, self.args.cosyvoice_codebase)
+        sys.path.insert(0,
             os.path.join(self.args.cosyvoice_codebase, "third_party/Matcha-TTS/")
         )
         from cosyvoice.cli.cosyvoice import CosyVoice2

@@ -98,7 +98,8 @@ Here's an example of the expected JSON format:
       "anxious about grades",
       "helpful"
     ],
-    "relationship_context": "study group partner"
+    "relationship_context": "study group partner",
+    "self_introduction": "David is a second-year computer science student who takes his studies very seriously. He excels at explaining technical concepts to others but often gets anxious about exams. Despite his own stress, he genuinely enjoys helping his classmates understand difficult material. He's known for creating detailed study guides and staying late in the library."
   },
   "role_2": {
     "name": "Emma Rodriguez",
@@ -111,7 +112,8 @@ Here's an example of the expected JSON format:
       "quick learner",
       "slightly disorganized"
     ],
-    "relationship_context": "classmate seeking help"
+    "relationship_context": "classmate seeking help",
+    "self_introduction": "Emma is a bright and enthusiastic student who grasps concepts quickly but struggles with consistent study habits. She's taking the same programming course as David and, while she understands the practical applications well, she sometimes has trouble with theoretical concepts. Her positive attitude and genuine interest in learning make her a pleasant study partner."
   },
   "conversation_context": {
     "type": "study session interaction",
@@ -231,7 +233,8 @@ SYSTEM_PROMPT_TEMPLATE_CN = """
       "对成绩焦虑",
       "乐于助人"
     ],
-    "relationship_context": "学习小组伙伴"
+    "relationship_context": "学习小组伙伴",
+    "self_introduction": "李明是一名计算机科学专业的大二学生，他非常重视自己的学业。他擅长向他人解释技术概念，但经常对考试感到焦虑。尽管有自己的压力，他真诚地喜欢帮助同学理解困难的材料。他以创建详细的学习笔记和在图书馆待到很晚而闻名。"
   },
   "role_2": {
     "name": "王芳",
@@ -244,7 +247,8 @@ SYSTEM_PROMPT_TEMPLATE_CN = """
       "学习快",
       "略微缺乏条理"
     ],
-    "relationship_context": "寻求帮助的同班同学"
+    "relationship_context": "寻求帮助的同班同学",
+    "self_introduction": "王芳是一个聪明而热情的学生，她能快速掌握概念，但在保持一致的学习习惯方面有困难。她和李明上同一门编程课，虽然她对实际应用理解得很好，但有时在理论概念上遇到困难。她积极的态度和对学习的真诚兴趣使她成为一个愉快的学习伙伴。"
   },
   "conversation_context": {
     "type": "学习讨论",

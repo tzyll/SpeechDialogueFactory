@@ -324,18 +324,18 @@ class SpeechDialogueFactory:
                 "content",
             ),
             ("TTS", self.tts, "speech"),
-            (
-                "IntelligibilityEvaluator",
-                self.intelligibility_evaluator,
-                "speech",
-            ),
-            (
-                "SpeakerConsistencyEvaluator",
-                self.speaker_consistency_evaluator,
-                "speech",
-            ),
-            ("SpeechQualityEvaluator", self.speech_quality_evaluator, "speech"),
-            ("SpeechQualityFilter", self.speech_quality_filter, "speech"),
+            #(
+            #    "IntelligibilityEvaluator",
+            #    self.intelligibility_evaluator,
+            #    "speech",
+            #),
+            #(
+            #    "SpeakerConsistencyEvaluator",
+            #    self.speaker_consistency_evaluator,
+            #    "speech",
+            #),
+            #("SpeechQualityEvaluator", self.speech_quality_evaluator, "speech"),
+            #("SpeechQualityFilter", self.speech_quality_filter, "speech"),
         ]
         # Make dir for the output task
         task_dir = os.path.join(self.output_dir, task_id)

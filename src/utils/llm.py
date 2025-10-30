@@ -88,7 +88,7 @@ class LLM(SDFModule):
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
             destroy_model_parallel()
             destroy_distributed_environment()
-            del self.model.llm_engine.model_executor.driver_worker
+            #del self.model.llm_engine.model_executor.driver_worker
             del self.model
             with contextlib.suppress(AssertionError):
                 torch.distributed.destroy_process_group()
@@ -106,11 +106,11 @@ class LLM(SDFModule):
         model = vllm.LLM(
             model=args.llm_in_use,
             tensor_parallel_size=torch.cuda.device_count(),
-            distributed_executor_backend="ray",
-            enable_prefix_caching=True, 
-            max_model_len=8192,
+            #distributed_executor_backend="ray",
+            #enable_prefix_caching=True, 
+            #max_model_len=8192,
             # max_seq_len_to_capture=8192,
-            gpu_memory_utilization=0.95,
+            gpu_memory_utilization=0.8,
             # max_num_seqs=16
         )
         tokenizer = AutoTokenizer.from_pretrained(args.llm_in_use)
@@ -232,12 +232,20 @@ class LLM(SDFModule):
             sampling_params = setup_sampling_params()
             model_inputs = [
                 self.tokenizer.apply_chat_template(
-                    prompt, tokenize=False, add_generation_prompt=True
+                    prompt, tokenize=False, add_generation_prompt=True,
+                    enable_thinking=False
                 )
                 for prompt in prompts
             ]
             logger.info(f"Running unguided decoding with {len(model_inputs)} prompts")
-            outputs = self.model.generate(model_inputs, sampling_params=sampling_params)
+            #outputs = self.model.generate(model_inputs, sampling_params=sampling_params)
+            #outputs = sorted(outputs, key=lambda x: int(x.request_id))
+            batch_size = 20
+            outputs = []
+            for i in tqdm.tqdm(range(0, len(model_inputs), batch_size)):
+                batch_outputs = self.model.generate(model_inputs[i:i+batch_size], sampling_params=sampling_params)
+                batch_outputs = sorted(batch_outputs, key=lambda x: int(x.request_id))
+                outputs.extend(batch_outputs)
             outputs = [
                 post_process_output(output.outputs[0].text) for output in outputs
             ]
@@ -249,12 +257,20 @@ class LLM(SDFModule):
             sampling_params = setup_sampling_params(guided_decoding_params)
             model_inputs = [
                 self.tokenizer.apply_chat_template(
-                    prompt, tokenize=False, add_generation_prompt=True
+                    prompt, tokenize=False, add_generation_prompt=True,
+                    enable_thinking=False
                 )
                 for prompt in prompts
             ]
             logger.info(f"Running guided decoding with {len(model_inputs)} prompts")
-            outputs = self.model.generate(model_inputs, sampling_params=sampling_params)
+            #outputs = self.model.generate(model_inputs, sampling_params=sampling_params)
+            #outputs = sorted(outputs, key=lambda x: int(x.request_id))
+            batch_size = 20
+            outputs = []
+            for i in tqdm.tqdm(range(0, len(model_inputs), batch_size)):
+                batch_outputs = self.model.generate(model_inputs[i:i+batch_size], sampling_params=sampling_params)
+                batch_outputs = sorted(batch_outputs, key=lambda x: int(x.request_id))
+                outputs.extend(batch_outputs)
             outputs = [
                 post_process_output(output.outputs[0].text) for output in outputs
             ]
@@ -273,7 +289,7 @@ class LLM(SDFModule):
             }
 
         failed_inputs = [
-            (i, prompt) for i, prompt in enumerate(prompts) if prompt is None
+            (i, prompt) for i, prompt in enumerate(prompts) if prompt is not None
         ]
         success_results = []
         if self.fast_mode:
